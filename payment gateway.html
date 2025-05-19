@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Hotel Booking Payment</title>
+    <script src="https://js.stripe.com/v3/"></script>
+    <script src="https://checkout.flutterwave.com/v3.js"></script>
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+    <style>
+        body {
+            font-family: Arial;
+            padding: 20px;
+            background: #c2bdbd;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        input,
+        select,
+        button {
+            width: 100%;
+            margin: 10px 0;
+            padding: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>Hotel Booking Payment</h2>
+        <form id="booking-form">
+            <input type="text" id="name" placeholder="Full Name" required>
+            <input type="email" id="email" placeholder="Email" required>
+            <select id="room">
+                <option value="single">Single - $100</option>
+                <option value="double">Double - $150</option>
+                <option value="suite">Suite - $250</option>
+            </select>
+            <input type="number" id="nights" placeholder="Number of Nights" value="1" min="1" required>
+
+            <label><strong>Select Payment Method:</strong></label>
+            <select id="payment-method" required>
+                <option value="stripe">Stripe</option>
+                <option value="paystack">Paystack</option>
+                <option value="flutterwave">Flutterwave</option>
+                <option value="paypal">PayPal</option>
+            </select>
+
+            <button type="submit">Pay Now</button>
+        </form>
+    </div>
+
+    <script>
+        const stripe = Stripe('pk_test_YOUR_STRIPE_PUBLIC_KEY'); // Replace with your key
+
+        document.getElementById("booking-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const name = document.getElementById("name").value;
+            const email = document.getElementById("email").value;
+            const roomType = document.getElementById("room").value;
+            const nights = parseInt(document.getElementById("nights").value);
+            const paymentMethod = document.getElementById("payment-method").value;
+
+            const priceMap = { single: 100, double: 150, suite: 250 };
+            const amount = priceMap[roomType] * nights;
+
+            if (paymentMethod === 'stripe') {
+                const res = await fetch('/create-stripe-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, amount })
+                });
+                const data = await res.json();
+                stripe.redirectToCheckout({ sessionId: data.id });
+
+            } else if (paymentMethod === 'paystack') {
+                const handler = PaystackPop.setup({
+                    key: 'pk_test_YOUR_PAYSTACK_PUBLIC_KEY',
+                    email: email,
+                    amount: amount * 100,
+                    currency: "USD",
+                    callback: function (response) {
+                        alert('Payment successful! Ref: ' + response.reference);
+                    },
+                    onClose: function () {
+                        alert('Transaction was not completed');
+                    }
+                });
+                handler.openIframe();
+
+            } else if (paymentMethod === 'flutterwave') {
+                FlutterwaveCheckout({
+                    public_key: "FLWPUBK_TEST-xxxxxxxxxxxxxx",
+                    tx_ref: Date.now(),
+                    amount: amount,
+                    currency: "USD",
+                    payment_options: "card, mobilemoney, ussd",
+                    customer: { email, name },
+                    callback: function (data) {
+                        alert("Payment complete! Ref: " + data.transaction_id);
+                    },
+                    onclose: function () { }
+                });
+
+            } else if (paymentMethod === 'paypal') {
+                window.location.href = `/create-paypal-transaction?amount=${amount}`;
+            }
+        });
+    </script>
+</body>
+
+</html>
